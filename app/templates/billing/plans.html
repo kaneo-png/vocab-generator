@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}料金プラン | 単語帳ジェネレーター{% endblock %}
+
+{% block content %}
+<div class="plans-page">
+    <h1>料金プラン</h1>
+    <p class="plans-description">学習スタイルに合わせてプランを選択してください。</p>
+
+    <div class="plan-grid">
+        <div class="plan-card {% if current_user.plan == 'free' %}current{% endif %}">
+            <h3>無料</h3>
+            <p class="price">¥0</p>
+            <ul>
+                <li>月3回の単語帳生成</li>
+                <li>広告あり</li>
+                <li>基本機能</li>
+            </ul>
+            {% if current_user.plan == 'free' %}
+                <p class="current-label">現在のプラン</p>
+            {% endif %}
+        </div>
+
+        <div class="plan-card featured {% if current_user.plan == 'ad_free' %}current{% endif %}">
+            <h3>広告なし</h3>
+            <p class="price">¥10<span>/月</span></p>
+            <ul>
+                <li>月10回の単語帳生成</li>
+                <li>広告なし</li>
+                <li>快適な学習環境</li>
+            </ul>
+            {% if current_user.plan == 'ad_free' %}
+                <p class="current-label">現在のプラン</p>
+            {% else %}
+                <a href="{{ url_for('billing.checkout', plan='ad_free') }}" class="btn btn-primary">このプランに変更</a>
+            {% endif %}
+        </div>
+
+        <div class="plan-card {% if current_user.plan == 'premium' %}current{% endif %}">
+            <h3>プレミアム</h3>
+            <p class="price">¥500<span>/月</span></p>
+            <ul>
+                <li>無制限の単語帳生成</li>
+                <li>広告なし</li>
+                <li>詳細なカスタマイズ</li>
+                <li>優先サポート</li>
+            </ul>
+            {% if current_user.plan == 'premium' %}
+                <p class="current-label">現在のプラン</p>
+            {% else %}
+                <a href="{{ url_for('billing.checkout', plan='premium') }}" class="btn btn-primary">このプランに変更</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

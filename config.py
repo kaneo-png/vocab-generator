@@ -1,0 +1,31 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class Config:
+    """アプリケーション設定。環境変数から読み込む。"""
+    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL", "sqlite:///vocab_generator.db"
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # DeepSeek API (OpenAI互換)
+    DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+    DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+
+    # Stripe
+    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+    STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+    # プラン設定 (Stripe Price ID)
+    STRIPE_PRICE_AD_FREE = os.environ.get("STRIPE_PRICE_AD_FREE", "")
+    STRIPE_PRICE_PREMIUM = os.environ.get("STRIPE_PRICE_PREMIUM", "")
+
+    # プランごとの月間生成回数制限
+    FREE_MONTHLY_LIMIT = 3
+    AD_FREE_MONTHLY_LIMIT = 10
+    PREMIUM_MONTHLY_LIMIT = 9999

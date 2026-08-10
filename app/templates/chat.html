@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}単語帳を作成 | 単語帳ジェネレーター{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+    <h1>単語帳を作成</h1>
+    <p class="chat-description">
+        チャットで学習目標・レベル・苦手分野を教えてください。<br>
+        例: 「TOEIC 800点を目指しています。中級レベルで、ビジネス英単語が苦手です。」
+    </p>
+
+    <div id="chat-messages" class="chat-messages">
+        <div class="message bot">
+            <div class="message-bubble">
+                こんにちは！👋 あなたに最適な英単語帳を作成します。<br>
+                まず、学習目標を教えてください。
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-input-area">
+        <textarea id="chat-input" rows="2" placeholder="メッセージを入力..." disabled></textarea>
+        <button id="chat-send" class="btn btn-primary" disabled>送信</button>
+    </div>
+
+    <div id="chat-status" class="chat-status"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

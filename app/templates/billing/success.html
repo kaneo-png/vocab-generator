@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}決済完了 | 単語帳ジェネレーター{% endblock %}
+
+{% block content %}
+<div class="success-container">
+    <div class="success-icon">✅</div>
+    <h1>決済が完了しました</h1>
+    <p>プランが更新されました。引き続き単語帳を生成できます。</p>
+    <div class="success-actions">
+        <a href="{{ url_for('chat.chat_page') }}" class="btn btn-primary">単語帳を作成する</a>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline">ダッシュボードへ</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}ダッシュボード | 単語帳ジェネレーター{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>ダッシュボード</h1>
+    <a href="{{ url_for('chat.chat_page') }}" class="btn btn-primary">＋ 新しい単語帳を作成</a>
+</div>
+
+<div class="usage-card">
+    <h3>今月の生成回数</h3>
+    <div class="usage-bar">
+        <div class="usage-fill" style="width: {{ (monthly_count / monthly_limit * 100) | round }}%"></div>
+    </div>
+    <p>{{ monthly_count }} / {{ monthly_limit }} 回（{{ current_user.plan }}プラン）</p>
+    {% if monthly_count >= monthly_limit %}
+        <p class="warning">生成回数の上限に達しました。<a href="{{ url_for('billing.plans') }}">プランをアップグレード</a></p>
+    {% endif %}
+</div>
+
+<h2>作成した単語帳</h2>
+{% if wordlists %}
+    <div class="wordlist-grid">
+        {% for wl in wordlists %}
+            <div class="wordlist-card">
+                <h3>{{ wl.title }}</h3>
+                <p class="meta">レベル: {{ wl.level or '未設定' }} | 単語数: {{ wl.words.count() }}</p>
+                <p class="meta">作成日: {{ wl.created_at.strftime('%Y/%m/%d') }}</p>
+                <div class="card-actions">
+                    <a href="{{ url_for('api.get_wordlist', wordlist_id=wl.id) }}" class="btn btn-outline btn-sm">詳細</a>
+                    <a href="{{ url_for('api.download_csv', wordlist_id=wl.id) }}" class="btn btn-primary btn-sm">CSVダウンロード</a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>まだ単語帳がありません。</p>
+        <a href="{{ url_for('chat.chat_page') }}" class="btn btn-primary">最初の単語帳を作成する</a>
+    </div>
+{% endif %}
+{% endblock %}

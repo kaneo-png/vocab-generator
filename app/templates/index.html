@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}パーソナライズ単語帳ジェネレーター | 英語学習{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>あなた専用の英単語帳を<br>AIが自動生成</h1>
+    <p class="hero-subtitle">
+        目標・レベル・苦手分野をチャットで伝えるだけ。<br>
+        最適な単語リストを数秒で作成し、Ankiで学習できます。
+    </p>
+    <div class="hero-actions">
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('chat.chat_page') }}" class="btn btn-primary btn-lg">単語帳を作成する</a>
+        {% else %}
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">無料で始める</a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-outline btn-lg">ログイン</a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="features">
+    <div class="feature-card">
+        <h3>🎯 パーソナライズ</h3>
+        <p>チャットで学習目標を伝えるだけ。あなた専用の単語リストを生成します。</p>
+    </div>
+    <div class="feature-card">
+        <h3>📥 Anki対応CSV</h3>
+        <p>生成した単語帳はAnki互換CSVでワンクリックダウンロード。</p>
+    </div>
+    <div class="feature-card">
+        <h3>⚡ わずか数秒</h3>
+        <p>DeepSeek AIが高速に単語リストを生成。待ち時間は最小限です。</p>
+    </div>
+</section>
+
+<section class="how-it-works">
+    <h2>使い方</h2>
+    <ol>
+        <li>アカウントを無料登録</li>
+        <li>チャットで学習目標・レベル・苦手分野を伝える</li>
+        <li>AIが最適な単語リストを生成</li>
+        <li>Anki CSVでダウンロードして学習開始</li>
+    </ol>
+</section>
+
+<section class="plans-preview">
+    <h2>料金プラン</h2>
+    <div class="plan-grid">
+        <div class="plan-card">
+            <h3>無料</h3>
+            <p class="price">¥0</p>
+            <ul>
+                <li>月3回の単語帳生成</li>
+                <li>広告あり</li>
+                <li>基本機能</li>
+            </ul>
+        </div>
+        <div class="plan-card featured">
+            <h3>広告なし</h3>
+            <p class="price">¥10<span>/月</span></p>
+            <ul>
+                <li>月10回の単語帳生成</li>
+                <li>広告なし</li>
+            </ul>
+        </div>
+        <div class="plan-card">
+            <h3>プレミアム</h3>
+            <p class="price">¥500<span>/月</span></p>
+            <ul>
+                <li>無制限の単語帳生成</li>
+                <li>広告なし</li>
+                <li>詳細なカスタマイズ</li>
+            </ul>
+        </div>
+    </div>
+</section>
+{% endblock %}
