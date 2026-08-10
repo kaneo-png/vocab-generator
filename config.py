@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -6,8 +7,13 @@ load_dotenv()
 class Config:
     """アプリケーション設定。環境変数から読み込む。"""
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+
+    # DBはinstance/フォルダ配下の絶対パスで指定
+    # （相対パスだとマイグレーションとアプリ実行時で参照先がズレるため）
+    _base_dir = Path(__file__).resolve().parent
     SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL", "sqlite:///vocab_generator.db"
+        "DATABASE_URL",
+        f"sqlite:///{_base_dir / 'instance' / 'vocab_generator.db'}",
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 

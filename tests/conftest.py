@@ -5,6 +5,13 @@ import pytest
 # プロジェクトルートをパスに追加
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+# 重要: create_app() を呼ぶ前に DATABASE_URL を上書きする。
+# Flask-SQLAlchemy 3.x ではエンジンは init_app() 時に作成されるため、
+# アプリ作成後に config.update() でURIを変更しても実DBに接続してしまう。
+# テストで実DB(instance/vocab_generator.db)を破壊しないよう、
+# 環境変数で先にテスト用のインメモリDBを指定する。
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+
 from app import create_app
 from app.extensions import db
 from app.models.user import User
@@ -16,7 +23,6 @@ def app():
     app = create_app()
     app.config.update(
         TESTING=True,
-        SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
         WTF_CSRF_ENABLED=False,
         DEEPSEEK_API_KEY="test-key",
     )
