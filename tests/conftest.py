@@ -36,19 +36,18 @@ def client(app):
 
 @pytest.fixture
 def test_user(app):
-    """テスト用ユーザーを作成して返す。"""
-    with app.app_context():
-        user = User(email="test@example.com")
-        user.set_password("password123")
-        db.session.add(user)
-        db.session.commit()
-        return user
+    """テスト用ユーザーを作成してIDを返す。"""
+    user = User(email="test@example.com")
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+    return user.id
 
 
 @pytest.fixture
 def logged_in_client(client, test_user):
     """ログイン済みテストクライアント。"""
     with client.session_transaction() as sess:
-        sess["_user_id"] = str(test_user.id)
+        sess["_user_id"] = str(test_user)
         sess["_fresh"] = True
     return client
