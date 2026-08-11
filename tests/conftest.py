@@ -5,27 +5,27 @@ import pytest
 # プロジェクトルートをパスに追加
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# 重要: create_app() を呼ぶ前に DATABASE_URL を上書きする。
-# Flask-SQLAlchemy 3.x ではエンジンは init_app() 時に作成されるため、
-# アプリ作成後に config.update() でURIを変更しても実DBに接続してしまう。
-# テストで実DB(instance/vocab_generator.db)を破壊しないよう、
-# 環境変数で先にテスト用のインメモリDBを指定する。
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-
 from app import create_app
 from app.extensions import db
 from app.models.user import User
+from config import Config
+
+
+class TestConfig(Config):
+    """テスト用設定。インメモリSQLiteを使用し、実DBを壊さない。"""
+    TESTING = True
+    # Flask-SQLAlchemy 3.x ではエンジンは init_app() 時に作成されるため、
+    # create_app() に渡す config_class 側でURIを指定する必要がある。
+    # これによりテスト実行中の create_all()/drop_all() が実DB(instance/vocab_generator.db)に触れない。
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    WTF_CSRF_ENABLED = False
+    DEEPSEEK_API_KEY = "test-key"
 
 
 @pytest.fixture
 def app():
     """テスト用アプリケーション。インメモリSQLiteを使用。"""
-    app = create_app()
-    app.config.update(
-        TESTING=True,
-        WTF_CSRF_ENABLED=False,
-        DEEPSEEK_API_KEY="test-key",
-    )
+    app = create_app(TestConfig)
 
     with app.app_context():
         db.create_all()
