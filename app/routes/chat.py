@@ -1,6 +1,6 @@
 import json
 import uuid
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.wordlist import WordList
@@ -18,9 +18,6 @@ def chat_page():
     return render_template("chat.html")
 
 
-
-
-
 @chat_bp.route("/api/chat/session", methods=["POST"])
 @login_required
 def create_session():
@@ -34,7 +31,6 @@ def create_session():
     db.session.add(session)
     db.session.commit()
 
-    # AIに最初の質問を生成させる
     try:
         ai = AIService()
         result = ai.analyze_and_respond(
@@ -45,8 +41,7 @@ def create_session():
         session.append_message("assistant", reply)
         session.collected_data = result["collected_data"]
         db.session.commit()
-    except AIServiceError as e:
-        # AI呼び出し失敗時はデフォルトの最初の質問で継続
+    except AIServiceError:
         reply = "こんにちは！あなたに最適な単語帳を作成します。まず、学習目標を教えてください。（例: TOEIC 800点、英検準1級、海外営業で使う英語など）"
         session.append_message("assistant", reply)
         db.session.commit()
@@ -73,7 +68,6 @@ def send_message():
     if not session:
         return jsonify({"error": "セッションが見つかりません。"}), 404
 
-    # ユーザー発言を履歴に追加
     session.append_message("user", user_message)
 
     try:
@@ -85,12 +79,10 @@ def send_message():
     except AIServiceError as e:
         return jsonify({"error": str(e)}), 500
 
-    # AI応答を履歴に追加
     reply = result["message_to_user"] or "もう少し詳しく教えてください。"
     session.append_message("assistant", reply)
     session.collected_data = result["collected_data"]
 
-    # 5項目が揃ったら completed にする
     cd = session.collected_data or {}
     required = ["goal", "level", "weak_points", "count"]
     if all(cd.get(k) for k in required):
@@ -143,7 +135,6 @@ def update_session(session_key: str):
             current[key] = data[key]
 
     session.collected_data = current
-    # 修正後に必須項目が揃えば completed にする
     required = ["goal", "level", "weak_points", "count"]
     if all(current.get(k) for k in required):
         session.status = "completed"
@@ -165,6 +156,7 @@ def generate_wordlist():
             "goal": "TOEIC 800点を目指す",
             "level": "中級",
             "weak_points": "ビジネス英単語",
+            "other_requests": "例文多め",
             "count": 20,
             "chat_history": [{"role": "user", "content": "..."}, ...]
         }
@@ -173,13 +165,13 @@ def generate_wordlist():
     goal = data.get("goal", "").strip()
     level = data.get("level", "").strip()
     weak_points = data.get("weak_points", "").strip()
-    count = min(int(data.get("count", 20)), 50)  # 最大50語
+    other_requests = data.get("other_requests", "").strip()
+    count = min(int(data.get("count", 20)), 200)
     chat_history = data.get("chat_history", [])
 
     if not goal:
         return jsonify({"error": "学習目標を入力してください。"}), 400
 
-    # 生成回数制限チェック
     if not current_user.can_generate():
         return jsonify({
             "error": "今月の生成回数上限に達しました。プランをアップグレードしてください。",
@@ -194,11 +186,18 @@ def generate_wordlist():
             weak_points=weak_points,
             count=count,
             chat_history=chat_history,
+            other_requests=other_requests,
         )
     except AIServiceError as e:
         return jsonify({"error": str(e)}), 500
 
-    # 単語帳をDBに保存
+    words = result.get("words", [])
+    if not words:
+        return jsonify({
+            "error": "AIの出力を検証できませんでした。",
+            "details": result.get("errors", []),
+        }), 502
+
     wordlist = WordList(
         user_id=current_user.id,
         title=result.get("title", "マイ単語帳"),
@@ -207,9 +206,9 @@ def generate_wordlist():
         weak_points=weak_points,
     )
     db.session.add(wordlist)
-    db.session.flush()  # wordlist.id を取得するため
+    db.session.flush()
 
-    for w in result.get("words", []):
+    for w in words:
         word = Word(
             wordlist_id=wordlist.id,
             word=w.get("word", ""),
@@ -217,16 +216,82 @@ def generate_wordlist():
             example=w.get("example", ""),
             example_ja=w.get("example_ja", ""),
             note=w.get("note", ""),
+            reason=w.get("reason", ""),
+            difficulty=w.get("difficulty", ""),
+            category=w.get("category", ""),
         )
         db.session.add(word)
+        db.session.flush()  # word.id を取得
+        w["id"] = word.id
 
-    # 生成回数をインクリメント
     current_user.increment_generation()
     db.session.commit()
 
     return jsonify({
         "wordlist_id": wordlist.id,
         "title": wordlist.title,
-        "words": result.get("words", []),
+        "words": words,
+        "errors": result.get("errors", []),
         "remaining": current_user.get_monthly_limit() - current_user.monthly_generation_count,
     })
+
+
+@chat_bp.route("/api/wordlists/<int:wordlist_id>/words", methods=["POST"])
+@login_required
+def add_word(wordlist_id: int):
+    """単語帳に単語を追加する。"""
+    wordlist = WordList.query.filter_by(
+        id=wordlist_id, user_id=current_user.id
+    ).first_or_404()
+
+    data = request.get_json(silent=True) or {}
+    word_text = (data.get("word") or "").strip()
+    if not word_text:
+        return jsonify({"error": "単語を入力してください。"}), 400
+
+    word = Word(
+        wordlist_id=wordlist.id,
+        word=word_text,
+        meaning=(data.get("meaning") or "").strip(),
+        example=(data.get("example") or "").strip(),
+        example_ja=(data.get("example_ja") or "").strip(),
+        note=(data.get("note") or "").strip(),
+        reason=(data.get("reason") or "").strip(),
+        difficulty=(data.get("difficulty") or "").strip(),
+        category=(data.get("category") or "").strip(),
+    )
+    db.session.add(word)
+    db.session.commit()
+    return jsonify({"id": word.id, "word": word.word}), 201
+
+
+@chat_bp.route("/api/wordlists/<int:wordlist_id>/words/<int:word_id>", methods=["PUT"])
+@login_required
+def edit_word(wordlist_id: int, word_id: int):
+    """単語を編集する。"""
+    word = Word.query.join(WordList).filter(
+        Word.id == word_id,
+        WordList.id == wordlist_id,
+        WordList.user_id == current_user.id,
+    ).first_or_404()
+
+    data = request.get_json(silent=True) or {}
+    for key in ("word", "meaning", "example", "example_ja", "note", "reason", "difficulty", "category"):
+        if key in data:
+            setattr(word, key, (data[key] or "").strip())
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@chat_bp.route("/api/wordlists/<int:wordlist_id>/words/<int:word_id>", methods=["DELETE"])
+@login_required
+def delete_word(wordlist_id: int, word_id: int):
+    """単語を削除する。"""
+    word = Word.query.join(WordList).filter(
+        Word.id == word_id,
+        WordList.id == wordlist_id,
+        WordList.user_id == current_user.id,
+    ).first_or_404()
+    db.session.delete(word)
+    db.session.commit()
+    return jsonify({"ok": True})

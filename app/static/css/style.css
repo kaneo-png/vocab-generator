@@ -748,3 +748,42 @@ a:hover {
     border-color: #4a6cf7;
     box-shadow: 0 0 0 3px rgba(74,108,247,0.1);
 }
+
+/* ===== 単語バッジ・編集ボタン ===== */
+.badge {
+    display: inline-block;
+    background: #4a6cf7;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.badge-cat {
+    background: #28a745;
+}
+
+.word-item .reason {
+    color: #4a6cf7;
+    font-size: 0.85rem;
+    margin-top: 3px;
+}
+
+.word-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+    color: #fff;
+}

@@ -232,20 +232,30 @@ async function generateWordlist() {
         resultDiv.className = "wordlist-result";
         resultDiv.innerHTML = `
             <h2>${escapeHtml(data.title)}</h2>
-            ${data.words.map(w => `
+            ${data.words.map((w, idx) => `
                 <div class="word-item">
-                    <div class="word">${escapeHtml(w.word)}</div>
+                    <div class="word">${escapeHtml(w.word)}
+                        ${w.difficulty ? `<span class="badge">${escapeHtml(w.difficulty)}</span>` : ""}
+                        ${w.category ? `<span class="badge badge-cat">${escapeHtml(w.category)}</span>` : ""}
+                    </div>
                     <div class="meaning">${escapeHtml(w.meaning)}</div>
+                    ${w.reason ? `<div class="reason">💡 ${escapeHtml(w.reason)}</div>` : ""}
                     ${w.example ? `<div class="example">${escapeHtml(w.example)}</div>` : ""}
+                    <div class="word-actions">
+                        <button class="btn btn-outline btn-sm" onclick="editWord(${data.wordlist_id}, ${idx})">編集</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteWord(${data.wordlist_id}, ${idx})">削除</button>
+                    </div>
                 </div>
             `).join("")}
             <div class="result-actions">
+                <button class="btn btn-outline" onclick="addWord(${data.wordlist_id})">＋ 単語を追加</button>
                 <a href="/api/wordlists/${data.wordlist_id}/csv" class="btn btn-primary">CSVダウンロード</a>
                 <a href="/dashboard" class="btn btn-outline">ダッシュボードへ</a>
             </div>
         `;
         messagesEl.appendChild(resultDiv);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+        window._lastWords = data.words;
 
         setStatus("");
         inputEl.placeholder = "単語帳が作成されました。";
@@ -274,3 +284,110 @@ inputEl.addEventListener("keydown", (e) => {
 // 初期化
 setInputEnabled(false);
 startSession();
+
+
+// ===== 単語の編集・削除・追加 =====
+let _wordlistId = null;
+
+function editWord(listId, idx) {
+    const w = window._lastWords[idx];
+    _wordlistId = listId;
+    const container = document.getElementById("edit-summary");
+    container.innerHTML = `
+        <h3>✏️ 単語を編集: ${escapeHtml(w.word)}</h3>
+        <div class="edit-fields">
+            <div class="edit-field"><label>単語</label><input id="ew-word" value="${escapeHtml(w.word)}"></div>
+            <div class="edit-field"><label>意味</label><input id="ew-meaning" value="${escapeHtml(w.meaning)}"></div>
+            <div class="edit-field"><label>例文</label><input id="ew-example" value="${escapeHtml(w.example || "")}"></div>
+            <div class="edit-field"><label>例文の訳</label><input id="ew-example_ja" value="${escapeHtml(w.example_ja || "")}"></div>
+            <div class="edit-field"><label>選定理由</label><input id="ew-reason" value="${escapeHtml(w.reason || "")}"></div>
+            <div class="edit-field"><label>難易度</label><input id="ew-difficulty" value="${escapeHtml(w.difficulty || "")}"></div>
+            <div class="edit-field"><label>カテゴリ</label><input id="ew-category" value="${escapeHtml(w.category || "")}"></div>
+        </div>
+        <button id="save-word" class="btn btn-primary btn-sm">保存</button>
+        <button id="cancel-edit" class="btn btn-outline btn-sm">キャンセル</button>
+    `;
+    container.style.display = "block";
+
+    document.getElementById("save-word").addEventListener("click", async () => {
+        const data = {};
+        ["word", "meaning", "example", "example_ja", "reason", "difficulty", "category"].forEach(k => {
+            const el = document.getElementById(`ew-${k}`);
+            if (el) data[k] = el.value.trim();
+        });
+        const res = await fetch(`/api/wordlists/${listId}/words/${w.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
+        if (res.ok) {
+            container.style.display = "none";
+            addMessage(`✅ 「${escapeHtml(data.word)}」を更新しました。`, "bot");
+        } else {
+            addMessage("更新に失敗しました。", "bot");
+        }
+    });
+    document.getElementById("cancel-edit").addEventListener("click", () => {
+        container.style.display = "none";
+    });
+}
+
+function deleteWord(listId, idx) {
+    const w = window._lastWords[idx];
+    if (!confirm(`「${w.word}」を削除しますか？`)) return;
+    fetch(`/api/wordlists/${listId}/words/${w.id}`, { method: "DELETE" })
+        .then(res => {
+            if (res.ok) {
+                addMessage(`🗑️ 「${escapeHtml(w.word)}」を削除しました。`, "bot");
+            } else {
+                addMessage("削除に失敗しました。", "bot");
+            }
+        });
+}
+
+function addWord(listId) {
+    _wordlistId = listId;
+    const container = document.getElementById("edit-summary");
+    container.innerHTML = `
+        <h3>＋ 単語を追加</h3>
+        <div class="edit-fields">
+            <div class="edit-field"><label>単語（必須）</label><input id="aw-word"></div>
+            <div class="edit-field"><label>意味</label><input id="aw-meaning"></div>
+            <div class="edit-field"><label>例文</label><input id="aw-example"></div>
+            <div class="edit-field"><label>例文の訳</label><input id="aw-example_ja"></div>
+            <div class="edit-field"><label>選定理由</label><input id="aw-reason"></div>
+            <div class="edit-field"><label>難易度</label><input id="aw-difficulty"></div>
+            <div class="edit-field"><label>カテゴリ</label><input id="aw-category"></div>
+        </div>
+        <button id="save-new-word" class="btn btn-primary btn-sm">追加</button>
+        <button id="cancel-add" class="btn btn-outline btn-sm">キャンセル</button>
+    `;
+    container.style.display = "block";
+
+    document.getElementById("save-new-word").addEventListener("click", async () => {
+        const data = {};
+        ["word", "meaning", "example", "example_ja", "reason", "difficulty", "category"].forEach(k => {
+            const el = document.getElementById(`aw-${k}`);
+            if (el) data[k] = el.value.trim();
+        });
+        if (!data.word) {
+            addMessage("単語を入力してください。", "bot");
+            return;
+        }
+        const res = await fetch(`/api/wordlists/${listId}/words`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
+        if (res.ok) {
+            container.style.display = "none";
+            addMessage(`✅ 「${escapeHtml(data.word)}」を追加しました。`, "bot");
+        } else {
+            const err = await res.json();
+            addMessage(`エラー: ${escapeHtml(err.error || "追加に失敗")}`, "bot");
+        }
+    });
+    document.getElementById("cancel-add").addEventListener("click", () => {
+        container.style.display = "none";
+    });
+}

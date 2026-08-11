@@ -25,6 +25,7 @@ class AIService:
         weak_points: str,
         count: int = 20,
         chat_history: list = None,
+        other_requests: str = "",
     ) -> dict:
         """
         ユーザーの目標・レベル・苦手分野に基づいて単語リストを生成する。
@@ -38,9 +39,13 @@ class AIService:
                         "meaning": str,
                         "example": str,
                         "example_ja": str,
-                        "note": str
+                        "note": str,
+                        "reason": str,
+                        "difficulty": str,
+                        "category": str
                     }
-                ]
+                ],
+                "errors": [str]  # バリデーションで除外された単語の情報
             }
         """
         if not current_app.config["DEEPSEEK_API_KEY"]:
@@ -48,7 +53,8 @@ class AIService:
 
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_user_prompt(
-            goal=goal, level=level, weak_points=weak_points, count=count
+            goal=goal, level=level, weak_points=weak_points, count=count,
+            other_requests=other_requests,
         )
 
         messages = [{"role": "system", "content": system_prompt}]
@@ -74,7 +80,14 @@ class AIService:
                 kwargs["response_format"] = {"type": "json_object"}
             response = self.client.chat.completions.create(**kwargs)
             content = response.choices[0].message.content
-            return self._parse_response(content)
+            result = self._parse_response(content)
+
+            # ハルシネーション防止バリデーションを適用
+            from app.services.validation import sanitize_wordlist
+            words, errors = sanitize_wordlist(result.get("words", []))
+            result["words"] = words
+            result["errors"] = errors
+            return result
         except AIServiceError:
             raise
         except Exception as e:
@@ -205,7 +218,15 @@ class AIService:
         return (
             "あなたは英語学習の専門家です。ユーザーの目標・レベル・苦手分野に基づいて、"
             "最適な英単語リストを生成してください。\n"
-            "必ず以下のjson（JSON）形式で返してください。json以外のテキストは含めないでください。\n"
+            "【重要ルール】\n"
+            "- 実在する英単語のみを出力すること。存在しない単語・造語・日本語由来の英語は禁止。\n"
+            "- ユーザーのレベルに合った難易度の単語を選ぶこと。\n"
+            "- 各単語に「選定理由（reason）」を必ず含めること。選定理由はユーザーの学習目標・苦手分野と"
+            "具体的に紐づけること（例: TOEIC頻出、ビジネスメールで使用頻度が高いなど）。\n"
+            "- 単語の難易度はCEFR基準（A1, A2, B1, B2, C1, C2）で正確に付与すること。\n"
+            "- カテゴリ（category）は単語の分野を簡潔に表すこと（例: ビジネス動詞, TOEIC頻出名詞）。\n"
+            "- 例文はその単語の実際の使われ方を反映した自然な英語にすること。\n"
+            "必ず以下のJSON形式で返してください。JSON以外のテキストは含めないでください。\n"
             "{\n"
             '  "title": "単語帳のタイトル",\n'
             '  "words": [\n'
@@ -214,7 +235,10 @@ class AIService:
             '      "meaning": "日本語訳",\n'
             '      "example": "英語の例文",\n'
             '      "example_ja": "例文の日本語訳",\n'
-            '      "note": "補足説明（語源・類義語・使い分けなど）"\n'
+            '      "note": "補足説明（語源・類義語・使い分けなど）",\n'
+            '      "reason": "この単語を選んだ理由（目標・苦手分野と紐づける）",\n'
+            '      "difficulty": "A1〜C2のいずれか",\n'
+            '      "category": "分野（例: ビジネス形容詞）"\n'
             "    }\n"
             "  ]\n"
             "}\n"
@@ -222,14 +246,17 @@ class AIService:
         )
 
     def _build_user_prompt(
-        self, goal: str, level: str, weak_points: str, count: int
+        self, goal: str, level: str, weak_points: str, count: int, other_requests: str = ""
     ) -> str:
-        return (
+        prompt = (
             f"【学習目標】\n{goal}\n\n"
             f"【英語レベル】\n{level}\n\n"
             f"【苦手分野】\n{weak_points}\n\n"
-            f"上記の情報に基づいて、{count}個の英単語リストを生成してください。"
         )
+        if other_requests:
+            prompt += f"【その他要望】\n{other_requests}\n\n"
+        prompt += f"上記の情報に基づいて、{count}個の英単語リストを生成してください。"
+        return prompt
 
     def _parse_response(self, content: str) -> dict:
         """AIのレスポンスからJSONを抽出してパースする。"""
