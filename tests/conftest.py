@@ -1,10 +1,8 @@
-import sys
-import os
 import pytest
 
-# プロジェクトルートをパスに追加
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+# プロジェクトルートを sys.path に追加する処理は pyproject.toml の
+# [tool.pytest.ini_options] pythonpath で行う（Pylance の解析パスは
+# .vscode/settings.json の python.analysis.extraPaths で解決）。
 from app import create_app
 from app.extensions import db
 from app.models.user import User

@@ -1,0 +1,6 @@
+# pytest 実行時にプロジェクトルートを sys.path へ追加して
+# app / config パッケージを解決できるようにする。
+# （pytest 7.0 以降の pythonpath オプション）
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

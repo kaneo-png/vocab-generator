@@ -21,6 +21,11 @@ class Config:
     DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
     DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+    # DeepSeekのJSONモード（response_format=json_object）を使用するか。
+    # 対応していないエンドポイントを使う場合は環境変数で無効化できる。
+    DEEPSEEK_JSON_MODE = (
+        os.environ.get("DEEPSEEK_JSON_MODE", "true").lower() in ("1", "true", "yes")
+    )
 
     # Stripe
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
