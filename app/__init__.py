@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template
 from config import Config
 from app.extensions import db, migrate, login_manager
 
@@ -35,5 +35,15 @@ def create_app(config_class=Config):
     @app.context_processor
     def inject_globals():
         return {"STRIPE_PUBLISHABLE_KEY": app.config["STRIPE_PUBLISHABLE_KEY"]}
+
+    # エラーハンドラ
+    @app.errorhandler(404)
+    def not_found(error):
+        return render_template("errors/404.html"), 404
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        db.session.rollback()
+        return render_template("errors/500.html"), 500
 
     return app

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}ページが見つかりません | 単語帳ジェネレーター{% endblock %}
+
+{% block content %}
+<div class="error-page">
+    <h1>404</h1>
+    <p>お探しのページが見つかりませんでした。</p>
+    <p>URLが正しいかご確認ください。</p>
+    <a href="{{ url_for('main.index') }}" class="btn btn-primary">トップページへ戻る</a>
+</div>
+{% endblock %}

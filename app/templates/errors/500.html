@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}エラーが発生しました | 単語帳ジェネレーター{% endblock %}
+
+{% block content %}
+<div class="error-page">
+    <h1>500</h1>
+    <p>サーバーでエラーが発生しました。</p>
+    <p>しばらくしてからもう一度お試しください。<br>問題が続く場合は運営までお知らせください。</p>
+    <a href="{{ url_for('main.index') }}" class="btn btn-primary">トップページへ戻る</a>
+</div>
+{% endblock %}

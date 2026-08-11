@@ -63,6 +63,30 @@ flask db upgrade
 python run.py
 ```
 
+## 本番デプロイ（Render）
+
+`render.yaml` をBlueprintとして使用すると、Webサービス + PostgreSQL が自動で作成される。
+
+### 手順
+1. https://render.com で無料アカウント作成（GitHubアカウントで連携）
+2. GitHub リポジトリ `kaneo-png/vocab-generator` をRenderに連携
+3. Renderダッシュボードで **「New」→「Blueprint」** を選択
+4. リポジトリを選ぶと `render.yaml` を自動検出してデプロイ
+5. デプロイ後、Renderの環境変数に以下を手動設定:
+   - `DEEPSEEK_API_KEY`（必須）
+   - `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET`（決済利用時）
+   - `STRIPE_PRICE_AD_FREE` / `STRIPE_PRICE_PREMIUM`（StripeでPriceを作成して設定）
+6. 発行されたURL（`https://vocab-generator.onrender.com` 等）にアクセス
+
+### 注意点
+- 無料枠は一定時間アクセスがないとスリープする（最初のアクセスは数秒かかる）
+- マイグレーションはデプロイ時に `flask db upgrade` が自動実行される
+- 本番ではSQLiteではなくPostgreSQLが使われる（`DATABASE_URL` 自動設定）
+
+## CI（GitHub Actions）
+
+`main` ブランチへのpush時に自動でテスト（pytest 34件）が実行される。
+
 ## 料金プラン
 
 | プラン | 料金 | 広告 | 生成回数/月 |

@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, Response
 from flask_login import login_required, current_user
+from urllib.parse import quote
 from app.models.wordlist import WordList
 from app.services.csv_service import CSVService
 
@@ -36,7 +37,13 @@ def download_csv(wordlist_id: int):
     return Response(
         csv_content,
         mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={
+            "Content-Disposition": (
+                # ASCIIフォールバック + 日本語対応（RFC 5987）
+                f"attachment; filename=wordlist_{wordlist.id}.csv; "
+                f"filename*=UTF-8''{quote(filename)}"
+            )
+        },
     )
 
 

@@ -136,6 +136,7 @@ def get_wordbook(wordbook_id: int):
 def download_wordbook_csv(wordbook_id: int):
     """単語帳をAnki互換CSVで出力する。"""
     from flask import Response
+    from urllib.parse import quote
     from app.services.csv_service import CSVService
 
     wordbook = Wordbook.query.filter_by(id=wordbook_id, user_id=current_user.id).first_or_404()
@@ -156,5 +157,11 @@ def download_wordbook_csv(wordbook_id: int):
     return Response(
         csv_content,
         mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={
+            "Content-Disposition": (
+                # ASCIIフォールバック + 日本語対応（RFC 5987）
+                f"attachment; filename=wordbook_{wordbook.id}.csv; "
+                f"filename*=UTF-8''{quote(filename)}"
+            )
+        },
     )

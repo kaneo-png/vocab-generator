@@ -17,6 +17,8 @@ def register_commands(app):
     app.cli.add_command(seed_all)
     app.cli.add_command(scrape_exam)
     app.cli.add_command(fill_meanings)
+    app.cli.add_command(beta_promote)
+    app.cli.add_command(beta_reset_password)
 
 
 @click.command("seed-all")
@@ -174,4 +176,43 @@ def fill_meanings(limit: int):
 
     db.session.commit()
     click.echo(f"✅ {updated} 語の意味を補完しました")
+
+
+@click.command("beta-promote")
+@click.argument("email")
+@click.argument("plan", type=click.Choice(["free", "ad_free", "premium"]))
+def beta_promote(email: str, plan: str):
+    """ベータテスターのプランを昇格する（Stripeを経由せず直接更新）。"""
+    from app.models.user import User
+
+    user = User.query.filter_by(email=email.strip().lower()).first()
+    if not user:
+        click.echo(f"❌ ユーザー '{email}' が見つかりません。")
+        return
+
+    old_plan = user.plan
+    user.plan = plan
+    db.session.commit()
+    click.echo(f"✅ {user.email} のプランを {old_plan} → {plan} に変更しました。")
+
+
+@click.command("beta-reset-password")
+@click.argument("email")
+@click.argument("new_password")
+def beta_reset_password(email: str, new_password: str):
+    """ベータテスターのパスワードをリセットする。"""
+    from app.models.user import User
+
+    if len(new_password) < 8:
+        click.echo("❌ パスワードは8文字以上にしてください。")
+        return
+
+    user = User.query.filter_by(email=email.strip().lower()).first()
+    if not user:
+        click.echo(f"❌ ユーザー '{email}' が見つかりません。")
+        return
+
+    user.set_password(new_password)
+    db.session.commit()
+    click.echo(f"✅ {user.email} のパスワードをリセットしました。")
 
