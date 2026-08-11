@@ -13,7 +13,8 @@
             <nav class="nav">
                 {% if current_user.is_authenticated %}
                     <a href="{{ url_for('main.dashboard') }}">ダッシュボード</a>
-                    <a href="{{ url_for('chat.chat_page') }}">単語帳を作成</a>
+                    <a href="{{ url_for('chat.chat_page') }}">チャットで作成</a>
+                    <a href="{{ url_for('master.master_page') }}">試験対策</a>
                     <a href="{{ url_for('billing.plans') }}">プラン</a>
                     <span class="plan-badge">{{ current_user.plan }}</span>
                     <a href="{{ url_for('auth.logout') }}">ログアウト</a>

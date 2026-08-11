@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}試験対策単語帳生成 | 単語帳ジェネレーター{% endblock %}
+
+{% block content %}
+<div class="master-container">
+    <h1>📋 試験対策単語帳ジェネレーター</h1>
+    <p class="chat-description">
+        目標試験を選ぶと、試験分析に基づいて最適な単語をAIが選定します。<br>
+        公開データ（Wikipedia等）から集計した頻出語をベースにしています。
+    </p>
+
+    <div class="master-form">
+        <div class="form-group">
+            <label for="exam-select">目標試験</label>
+            <select id="exam-select">
+                {% for exam in exams %}
+                    <option value="{{ exam.id }}">{{ exam.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="folder-select">保存先フォルダ</label>
+            <select id="folder-select">
+                <option value="">（フォルダなし）</option>
+                {% for folder in folders %}
+                    <option value="{{ folder.id }}">{{ folder.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" id="new-folder-name" placeholder="新規フォルダ名..." style="margin-top:8px;">
+            <button id="btn-add-folder" class="btn btn-outline btn-sm">フォルダ追加</button>
+        </div>
+        <div class="form-group">
+            <label for="count-input">単語数（最大200）</label>
+            <input type="number" id="count-input" value="50" min="10" max="200">
+        </div>
+        <div class="form-group">
+            <label for="weak-input">苦手分野（任意）</label>
+            <input type="text" id="weak-input" placeholder="例: ビジネス文書読解">
+        </div>
+        <button id="btn-generate" class="btn btn-primary btn-block">AIが単語を選定して生成</button>
+    </div>
+
+    <div id="master-status" class="chat-status"></div>
+    <div id="master-result"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/master.js') }}"></script>
+{% endblock %}
