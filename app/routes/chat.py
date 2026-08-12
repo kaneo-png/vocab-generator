@@ -7,6 +7,14 @@ from app.models.wordlist import WordList
 from app.models.word import Word
 from app.models.chat_session import ChatSession
 from app.services.ai_service import AIService, AIServiceError
+from app.services.security import (
+    INJECTION_ERROR_MESSAGE,
+    MAX_FIELD_LENGTH,
+    MAX_MESSAGE_LENGTH,
+    MAX_WORD_COUNT,
+    has_prompt_injection,
+    validate_chat_history,
+)
 
 chat_bp = Blueprint("chat", __name__)
 
@@ -63,6 +71,13 @@ def send_message():
 
     if not session_key or not user_message:
         return jsonify({"error": "セッションキーとメッセージが必要です。"}), 400
+
+    if len(user_message) > MAX_MESSAGE_LENGTH:
+        return jsonify({
+            "error": f"メッセージが長すぎます（最大{MAX_MESSAGE_LENGTH}文字）。"
+        }), 400
+    if has_prompt_injection(user_message):
+        return jsonify({"error": INJECTION_ERROR_MESSAGE}), 400
 
     session = ChatSession.query.filter_by(session_key=session_key).first()
     if not session:
@@ -131,8 +146,27 @@ def update_session(session_key: str):
 
     current = dict(session.collected_data or {})
     for key in ("goal", "level", "weak_points", "count", "other_requests"):
-        if key in data:
-            current[key] = data[key]
+        if key not in data:
+            continue
+        value = data[key]
+        if key == "count":
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                return jsonify({"error": "countは数値で指定してください。"}), 400
+            if not 1 <= value <= MAX_WORD_COUNT:
+                return jsonify({
+                    "error": f"countは1〜{MAX_WORD_COUNT}の範囲で指定してください。"
+                }), 400
+        else:
+            value = str(value).strip()
+            if len(value) > MAX_FIELD_LENGTH:
+                return jsonify({
+                    "error": f"{key}が長すぎます（最大{MAX_FIELD_LENGTH}文字）。"
+                }), 400
+            if has_prompt_injection(value):
+                return jsonify({"error": INJECTION_ERROR_MESSAGE}), 400
+        current[key] = value
 
     session.collected_data = current
     required = ["goal", "level", "weak_points", "count"]
@@ -166,11 +200,34 @@ def generate_wordlist():
     level = data.get("level", "").strip()
     weak_points = data.get("weak_points", "").strip()
     other_requests = data.get("other_requests", "").strip()
-    count = min(int(data.get("count", 20)), 200)
     chat_history = data.get("chat_history", [])
+
+    try:
+        count = int(data.get("count", 20))
+    except (TypeError, ValueError):
+        return jsonify({"error": "countは数値で指定してください。"}), 400
+    count = min(max(count, 1), MAX_WORD_COUNT)
 
     if not goal:
         return jsonify({"error": "学習目標を入力してください。"}), 400
+
+    # 長さ・インジェクション検証
+    for field_name, value in (
+        ("goal", goal),
+        ("level", level),
+        ("weak_points", weak_points),
+        ("other_requests", other_requests),
+    ):
+        if len(value) > MAX_FIELD_LENGTH:
+            return jsonify({
+                "error": f"{field_name}が長すぎます（最大{MAX_FIELD_LENGTH}文字）。"
+            }), 400
+        if has_prompt_injection(value):
+            return jsonify({"error": INJECTION_ERROR_MESSAGE}), 400
+
+    ok, msg = validate_chat_history(chat_history)
+    if not ok:
+        return jsonify({"error": msg}), 400
 
     if not current_user.can_generate():
         return jsonify({
