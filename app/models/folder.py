@@ -68,7 +68,9 @@ class WordbookWord(db.Model):
     )
     selection_reason = db.Column(db.Text, nullable=True)  # AI選定理由
     sort_order = db.Column(db.Integer, nullable=False, default=0)
-    db.UniqueConstraint("wordbook_id", "word_master_id")
+    __table_args__ = (
+        db.UniqueConstraint("wordbook_id", "word_master_id", name="uq_wordbook_words"),
+    )
 
     word = db.relationship("WordMaster")
 
@@ -93,7 +95,9 @@ class UserWordHistory(db.Model):
     incorrect_count = db.Column(db.Integer, nullable=False, default=0)
     mastery_score = db.Column(db.Float, nullable=False, default=0.0)  # 0.0〜1.0
     last_reviewed_at = db.Column(db.DateTime, nullable=True)
-    db.UniqueConstraint("user_id", "word_master_id")
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "word_master_id", name="uq_user_word_history"),
+    )
 
     word = db.relationship("WordMaster")
 

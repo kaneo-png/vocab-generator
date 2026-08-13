@@ -5,6 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}パーソナライズ単語帳ジェネレーター{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+    (function () {
+        var token = document.querySelector('meta[name="csrf-token"]').content;
+        var origFetch = window.fetch;
+        window.fetch = function () {
+            var args = Array.prototype.slice.call(arguments);
+            var config = args[1] || {};
+            var method = (config.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
+                config.headers = Object.assign({ 'X-CSRFToken': token }, config.headers || {});
+                args[1] = config;
+            }
+            return origFetch.apply(window, args);
+        };
+    })();
+    </script>
 </head>
 <body>
     <header class="site-header">

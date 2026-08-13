@@ -6,6 +6,12 @@ from app.models.exam import Exam
 from app.models.folder import Folder, Wordbook, WordbookWord
 from app.models.word_master import WordMaster, Meaning
 from app.services.selection_service import SelectionService, SelectionServiceError
+from app.services.security import (
+    INJECTION_ERROR_MESSAGE,
+    MAX_FIELD_LENGTH,
+    MAX_WORD_COUNT,
+    has_prompt_injection,
+)
 
 master_bp = Blueprint("master", __name__)
 
@@ -35,6 +41,12 @@ def create_folder():
     name = (data.get("name") or "").strip()
     if not name:
         return jsonify({"error": "フォルダ名を入力してください。"}), 400
+    if len(name) > MAX_FIELD_LENGTH:
+        return jsonify({
+            "error": f"フォルダ名が長すぎます（最大{MAX_FIELD_LENGTH}文字）。"
+        }), 400
+    if has_prompt_injection(name):
+        return jsonify({"error": INJECTION_ERROR_MESSAGE}), 400
     folder = Folder(user_id=current_user.id, name=name)
     db.session.add(folder)
     db.session.commit()
@@ -56,13 +68,29 @@ def delete_folder(folder_id: int):
 def generate_wordbook():
     """AI選定に基づいて単語帳を生成する。"""
     data = request.get_json(silent=True) or {}
-    exam_id = int(data.get("exam_id", 0))
     folder_id = data.get("folder_id")
-    count = min(int(data.get("count", 50)), 200)
     weak_points = (data.get("weak_points") or "").strip()
+
+    try:
+        exam_id = int(data.get("exam_id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "exam_idは数値で指定してください。"}), 400
+
+    try:
+        count = int(data.get("count", 50))
+    except (TypeError, ValueError):
+        return jsonify({"error": "countは数値で指定してください。"}), 400
+    count = min(max(count, 1), MAX_WORD_COUNT)
 
     if not exam_id:
         return jsonify({"error": "試験を選択してください。"}), 400
+
+    if len(weak_points) > MAX_FIELD_LENGTH:
+        return jsonify({
+            "error": f"weak_pointsが長すぎます（最大{MAX_FIELD_LENGTH}文字）。"
+        }), 400
+    if has_prompt_injection(weak_points):
+        return jsonify({"error": INJECTION_ERROR_MESSAGE}), 400
 
     try:
         service = SelectionService(current_user)

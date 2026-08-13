@@ -181,14 +181,17 @@ class SelectionService:
             {"role": "user", "content": user_prompt},
         ]
 
+        kwargs = {
+            "model": ai.model,
+            "messages": messages,
+            "temperature": 0.4,
+            "max_tokens": 4000,
+        }
+        if current_app.config.get("DEEPSEEK_JSON_MODE", True):
+            kwargs["response_format"] = {"type": "json_object"}
+
         try:
-            response = ai.client.chat.completions.create(
-                model=ai.model,
-                messages=messages,
-                temperature=0.4,
-                max_tokens=4000,
-                response_format={"type": "json_object"},
-            )
+            response = ai.client.chat.completions.create(**kwargs)
             content = response.choices[0].message.content
             result = ai._parse_response(content)
         except Exception as e:
@@ -198,7 +201,10 @@ class SelectionService:
         selected_words = []
         cand_map = {c["word_master_id"]: c for c in candidates}
         for w in result.get("words", [])[:count]:
-            wm_id = int(w.get("word_master_id", 0))
+            try:
+                wm_id = int(w.get("word_master_id", 0))
+            except (TypeError, ValueError):
+                continue
             cand = cand_map.get(wm_id)
             if not cand:
                 continue

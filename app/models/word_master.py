@@ -73,7 +73,9 @@ class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     type = db.Column(db.String(50), nullable=False)   # 例: topic / pos / theme
     name = db.Column(db.String(100), nullable=False)
-    db.UniqueConstraint("type", "name")
+    __table_args__ = (
+        db.UniqueConstraint("type", "name", name="uq_tags"),
+    )
 
     def __repr__(self) -> str:
         return f"<Tag {self.type}:{self.name}>"

@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
-from app.extensions import db
+from app.extensions import db, csrf
 from app.services.billing_service import BillingService, BillingServiceError
 
 billing_bp = Blueprint("billing", __name__)
@@ -46,6 +46,7 @@ def cancel():
 
 
 @billing_bp.route("/billing/webhook", methods=["POST"])
+@csrf.exempt
 def webhook():
     """Stripe Webhook受信エンドポイント。"""
     payload = request.get_data()

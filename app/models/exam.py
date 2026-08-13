@@ -42,7 +42,9 @@ class ExamWordStat(db.Model):
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
-    db.UniqueConstraint("word_master_id", "exam_id")
+    __table_args__ = (
+        db.UniqueConstraint("word_master_id", "exam_id", name="uq_exam_word_stats"),
+    )
 
     word = db.relationship("WordMaster")
 

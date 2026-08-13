@@ -7,6 +7,7 @@
     <h1>無料登録</h1>
     <p class="auth-description">無料プランで月3回まで単語帳を生成できます。</p>
     <form method="POST" class="auth-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="email">メールアドレス</label>
             <input type="email" id="email" name="email" required autofocus>
