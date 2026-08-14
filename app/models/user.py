@@ -18,6 +18,8 @@ class User(UserMixin, db.Model):
     monthly_generation_count = db.Column(db.Integer, nullable=False, default=0)
     # カウント対象の月（YYYY-MM形式）
     generation_month = db.Column(db.String(7), nullable=False, default="")
+    # Stripe Customer ID（サブスク管理・解約時に使用）
+    stripe_customer_id = db.Column(db.String(255), nullable=True)
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )

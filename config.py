@@ -31,6 +31,9 @@ class Config:
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
     STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
     STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    # Checkout後のリダイレクト先（未設定ならurl_forで自動生成）
+    STRIPE_SUCCESS_URL = os.environ.get("STRIPE_SUCCESS_URL", "")
+    STRIPE_CANCEL_URL = os.environ.get("STRIPE_CANCEL_URL", "")
 
     # プラン設定 (Stripe Price ID)
     STRIPE_PRICE_AD_FREE = os.environ.get("STRIPE_PRICE_AD_FREE", "")

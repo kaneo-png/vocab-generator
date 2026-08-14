@@ -76,32 +76,69 @@ class SelectionService:
         return selected
 
     def _extract_candidates(self, exam_id: int) -> list:
-        """試験別の候補単語リストを抽出する。"""
+        """試験別の候補単語リストを抽出する（N+1回避のため一括取得）。"""
+        from sqlalchemy.orm import selectinload
+
         stats = (
-            ExamWordStat.query.filter_by(exam_id=exam_id)
+            ExamWordStat.query
+            .options(selectinload(ExamWordStat.word))
+            .filter_by(exam_id=exam_id)
             .filter(ExamWordStat.frequency_score > 0)
             .order_by(ExamWordStat.frequency_score.desc())
             .limit(500)
             .all()
         )
+
+        word_ids = [s.word_master_id for s in stats if s.word]
+        meanings_map = self._load_meanings(word_ids)
+        tags_map = self._load_tags(word_ids)
+
         candidates = []
         for stat in stats:
             word = stat.word
             if not word:
                 continue
-            meaning = ""
-            if word.meanings.count():
-                meaning = word.meanings.first().meaning_ja
-            # タグ取得
-            tags = [wt.tag.name for wt in word.tags.all() if wt.tag]
             candidates.append({
                 "word_master_id": word.id,
                 "lemma": word.lemma,
-                "meaning_ja": meaning,
+                "meaning_ja": meanings_map.get(word.id, ""),
                 "frequency_score": stat.frequency_score or 0,
-                "tags": tags,
+                "tags": tags_map.get(word.id, []),
             })
         return candidates
+
+    def _load_meanings(self, word_ids: list) -> dict:
+        """単語ID群の日本語訳をまとめて取得する（先頭の意味を使用）。"""
+        if not word_ids:
+            return {}
+        meanings = (
+            Meaning.query
+            .filter(Meaning.word_master_id.in_(word_ids))
+            .order_by(Meaning.id)
+            .all()
+        )
+        result = {}
+        for m in meanings:
+            result.setdefault(m.word_master_id, m.meaning_ja)
+        return result
+
+    def _load_tags(self, word_ids: list) -> dict:
+        """単語ID群のタグ名をまとめて取得する。"""
+        if not word_ids:
+            return {}
+        from sqlalchemy.orm import selectinload
+
+        links = (
+            WordTag.query
+            .filter(WordTag.word_master_id.in_(word_ids))
+            .options(selectinload(WordTag.tag))
+            .all()
+        )
+        result = {}
+        for wt in links:
+            if wt.tag:
+                result.setdefault(wt.word_master_id, []).append(wt.tag.name)
+        return result
 
     def _apply_domain_rules(self, exam_id: int, candidates: list) -> list:
         """ドメインルールを適用する。"""
@@ -120,12 +157,15 @@ class SelectionService:
 
     def _get_learned_word_ids(self) -> set:
         """ユーザーの既習単語IDを取得する。"""
-        wordbooks = Wordbook.query.filter_by(user_id=self.user.id).all()
-        ids = set()
-        for wb in wordbooks:
-            for ww in wb.words.all():
-                ids.add(ww.word_master_id)
-        return ids
+        wordbook_ids = [
+            wb.id for wb in Wordbook.query.filter_by(user_id=self.user.id).all()
+        ]
+        if not wordbook_ids:
+            return set()
+        rows = WordbookWord.query.filter(
+            WordbookWord.wordbook_id.in_(wordbook_ids)
+        ).all()
+        return {ww.word_master_id for ww in rows}
 
     def _get_weak_word_ids(self) -> set:
         """ユーザーの苦手単語IDを取得する（mastery_score が 0.4 未満）。"""
@@ -195,7 +235,10 @@ class SelectionService:
             content = response.choices[0].message.content
             result = ai._parse_response(content)
         except Exception as e:
-            raise SelectionServiceError(f"AI選定に失敗しました: {e}")
+            current_app.logger.error(f"AI選定に失敗: {e}")
+            raise SelectionServiceError(
+                "AI選定に失敗しました。時間をおいて再度お試しください。"
+            )
 
         # 選定された単語をマージ
         selected_words = []

@@ -1,6 +1,6 @@
 import json
 import uuid
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.wordlist import WordList
@@ -92,7 +92,10 @@ def send_message():
             collected_data=session.collected_data or {},
         )
     except AIServiceError as e:
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.error(f"AI処理エラー: {e}")
+        return jsonify({
+            "error": "AIの処理に失敗しました。時間をおいて再度お試しください。"
+        }), 500
 
     reply = result["message_to_user"] or "もう少し詳しく教えてください。"
     session.append_message("assistant", reply)
@@ -246,7 +249,10 @@ def generate_wordlist():
             other_requests=other_requests,
         )
     except AIServiceError as e:
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.error(f"AI処理エラー: {e}")
+        return jsonify({
+            "error": "AIの処理に失敗しました。時間をおいて再度お試しください。"
+        }), 500
 
     words = result.get("words", [])
     if not words:

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_required, current_user
 from app.extensions import db, csrf
 from app.services.billing_service import BillingService, BillingServiceError
@@ -59,24 +59,40 @@ def webhook():
         return jsonify({"error": str(e)}), 400
 
     # サブスクリプション更新イベントを処理
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        user_id = session.get("metadata", {}).get("user_id")
-        plan = session.get("metadata", {}).get("plan")
-        if user_id and plan:
-            from app.models.user import User
+    from app.models.user import User
 
+    event_type = event["type"]
+    obj = event["data"]["object"]
+
+    if event_type == "checkout.session.completed":
+        # 決済完了: プラン昇格 + Stripe Customer ID保存
+        user_id = obj.get("metadata", {}).get("user_id")
+        plan = obj.get("metadata", {}).get("plan")
+        customer_id = obj.get("customer")
+        if user_id and plan:
             user = db.session.get(User, int(user_id))
             if user:
                 user.plan = plan
+                if customer_id:
+                    user.stripe_customer_id = customer_id
                 db.session.commit()
 
-    elif event["type"] == "customer.subscription.updated":
-        subscription = event["data"]["object"]
-        # 解約・キャンセル時の処理
-        if subscription.get("status") == "canceled":
-            # メタデータからユーザーを特定してfreeに戻す
-            # 実際の運用ではStripe Customer IDをユーザーに紐づける必要がある
-            pass
+    elif event_type in ("customer.subscription.updated", "customer.subscription.deleted"):
+        # 解約・未払い時は free に戻す
+        status = obj.get("status")
+        if event_type == "customer.subscription.deleted" or status in (
+            "canceled",
+            "unpaid",
+            "incomplete_expired",
+        ):
+            customer_id = obj.get("customer")
+            if customer_id:
+                user = User.query.filter_by(stripe_customer_id=customer_id).first()
+                if user and user.plan != "free":
+                    user.plan = "free"
+                    db.session.commit()
+                    current_app.logger.info(
+                        f"ユーザー {user.id} をサブスク解除により free に戻しました"
+                    )
 
     return jsonify({"received": True}), 200

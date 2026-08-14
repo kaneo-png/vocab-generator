@@ -16,6 +16,34 @@ from app.services.security import (
 master_bp = Blueprint("master", __name__)
 
 
+def _load_wordbook_word_dicts(wordbook) -> list:
+    """単語帳の単語一覧を、意味をバッチ取得して返す（N+1回避）。"""
+    links = wordbook.words.all()
+    word_ids = [ww.word_master_id for ww in links]
+
+    meanings_map = {}
+    if word_ids:
+        meanings = (
+            Meaning.query
+            .filter(Meaning.word_master_id.in_(word_ids))
+            .order_by(Meaning.id)
+            .all()
+        )
+        for m in meanings:
+            meanings_map.setdefault(m.word_master_id, m.meaning_ja)
+
+    result = []
+    for ww in links:
+        word = ww.word
+        result.append({
+            "word": word.lemma if word else "",
+            "meaning": meanings_map.get(ww.word_master_id, ""),
+            "reason": ww.selection_reason,
+            "word_master_id": ww.word_master_id,
+        })
+    return result
+
+
 @master_bp.route("/master")
 @login_required
 def master_page():
@@ -140,18 +168,7 @@ def generate_wordbook():
 def get_wordbook(wordbook_id: int):
     """単語帳の詳細を取得する。"""
     wordbook = Wordbook.query.filter_by(id=wordbook_id, user_id=current_user.id).first_or_404()
-    words = []
-    for ww in wordbook.words.all():
-        word = ww.word
-        meaning = ""
-        if word and word.meanings.count():
-            meaning = word.meanings.first().meaning_ja
-        words.append({
-            "word": word.lemma if word else "",
-            "meaning": meaning,
-            "reason": ww.selection_reason,
-            "word_master_id": ww.word_master_id,
-        })
+    words = _load_wordbook_word_dicts(wordbook)
     return jsonify({
         "id": wordbook.id,
         "title": wordbook.title,
@@ -168,17 +185,7 @@ def download_wordbook_csv(wordbook_id: int):
     from app.services.csv_service import CSVService
 
     wordbook = Wordbook.query.filter_by(id=wordbook_id, user_id=current_user.id).first_or_404()
-    words = []
-    for ww in wordbook.words.all():
-        word = ww.word
-        meaning = ""
-        if word and word.meanings.count():
-            meaning = word.meanings.first().meaning_ja
-        words.append({
-            "word": word.lemma if word else "",
-            "meaning": meaning,
-            "reason": ww.selection_reason,
-        })
+    words = _load_wordbook_word_dicts(wordbook)
 
     csv_content = CSVService.to_anki_csv(words)
     filename = f"{wordbook.title}.csv"

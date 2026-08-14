@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from app.extensions import db
 from app.models.user import User
+from app.services.rate_limit import login_rate_limiter, RateLimitExceeded
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -53,8 +54,17 @@ def login():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
 
+        # ブルートフォース対策: IPあたり5分間に5回まで
+        client_key = request.remote_addr or "unknown"
+        try:
+            login_rate_limiter.hit(client_key)
+        except RateLimitExceeded as e:
+            flash(str(e), "error")
+            return render_template("auth/login.html")
+
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
+            login_rate_limiter.reset(client_key)
             login_user(user)
             flash("ログインしました。", "success")
             next_page = request.args.get("next")

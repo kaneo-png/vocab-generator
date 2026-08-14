@@ -1,5 +1,5 @@
 import stripe
-from flask import current_app
+from flask import current_app, url_for
 
 
 class BillingServiceError(Exception):
@@ -29,17 +29,21 @@ class BillingService:
                 f"プラン '{plan}' のStripe Price IDが設定されていません。"
             )
 
+        # リダイレクト先（未設定なら現在のホストから自動生成）
+        success_url = current_app.config.get("STRIPE_SUCCESS_URL") or url_for(
+            "billing.success", _external=True
+        )
+        cancel_url = current_app.config.get("STRIPE_CANCEL_URL") or url_for(
+            "billing.plans", _external=True
+        )
+
         try:
             session = stripe.checkout.Session.create(
                 mode="subscription",
                 customer_email=user.email,
                 line_items=[{"price": price_id, "quantity": 1}],
-                success_url=current_app.config.get(
-                    "STRIPE_SUCCESS_URL", "http://localhost:5000/billing/success"
-                ),
-                cancel_url=current_app.config.get(
-                    "STRIPE_CANCEL_URL", "http://localhost:5000/billing/plans"
-                ),
+                success_url=success_url,
+                cancel_url=cancel_url,
                 metadata={"user_id": str(user.id), "plan": plan},
             )
             return session.url
