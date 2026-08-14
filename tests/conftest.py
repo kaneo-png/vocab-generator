@@ -55,3 +55,13 @@ def logged_in_client(client, test_user):
         sess["_user_id"] = str(test_user)
         sess["_fresh"] = True
     return client
+
+
+@pytest.fixture
+def ad_free_logged_in_client(app, logged_in_client, test_user):
+    """ad_freeプラン・メール認証済みでログインしたクライアント。"""
+    user = db.session.get(User, test_user)
+    user.plan = "ad_free"
+    user.email_verified = True
+    db.session.commit()
+    return logged_in_client

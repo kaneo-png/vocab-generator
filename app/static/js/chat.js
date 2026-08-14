@@ -210,7 +210,19 @@ async function generateWordlist() {
         const data = await response.json();
 
         if (!response.ok) {
-            if (data.limit_reached) {
+            if (data.login_required) {
+                addMessage(
+                    "🎁 ゲストの利用上限に達しました。<br>" +
+                    `<a href="/register">無料登録</a>（メール認証）または<a href="/login">ログイン</a>すると続けて利用できます。`,
+                    "bot"
+                );
+            } else if (data.verification_required) {
+                addMessage(
+                    "✉️ メール認証が必要です。<br>" +
+                    `<a href="/resend-verification">確認メールを再送</a>するか、メールに記載のリンクで認証してください。`,
+                    "bot"
+                );
+            } else if (data.limit_reached) {
                 addMessage(
                     "⚠️ 今月の生成回数上限に達しました。<br>" +
                     `<a href="/billing/plans">プランをアップグレード</a>すると続けて利用できます。`,
@@ -241,16 +253,17 @@ async function generateWordlist() {
                     <div class="meaning">${escapeHtml(w.meaning)}</div>
                     ${w.reason ? `<div class="reason">💡 ${escapeHtml(w.reason)}</div>` : ""}
                     ${w.example ? `<div class="example">${escapeHtml(w.example)}</div>` : ""}
+                    ${window.CAN_EDIT ? `
                     <div class="word-actions">
                         <button class="btn btn-outline btn-sm" onclick="editWord(${data.wordlist_id}, ${idx})">編集</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteWord(${data.wordlist_id}, ${idx})">削除</button>
-                    </div>
+                    </div>` : ""}
                 </div>
             `).join("")}
             <div class="result-actions">
-                <button class="btn btn-outline" onclick="addWord(${data.wordlist_id})">＋ 単語を追加</button>
+                ${window.CAN_EDIT ? `<button class="btn btn-outline" onclick="addWord(${data.wordlist_id})">＋ 単語を追加</button>` : ""}
                 <a href="/api/wordlists/${data.wordlist_id}/csv" class="btn btn-primary">CSVダウンロード</a>
-                <a href="/dashboard" class="btn btn-outline">ダッシュボードへ</a>
+                ${window.CURRENT_USER_AUTH ? `<a href="/dashboard" class="btn btn-outline">ダッシュボードへ</a>` : ""}
             </div>
         `;
         messagesEl.appendChild(resultDiv);

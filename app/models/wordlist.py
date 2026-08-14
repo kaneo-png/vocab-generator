@@ -8,7 +8,8 @@ class WordList(db.Model):
     __tablename__ = "wordlists"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    # user_idはゲスト（未ログイン）生成時はNULL
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
     title = db.Column(db.String(255), nullable=False)
     goal = db.Column(db.Text, nullable=True)          # 学習目標
     level = db.Column(db.String(50), nullable=True)   # レベル（初級/中級/上級）

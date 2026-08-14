@@ -14,7 +14,7 @@
             <ul>
                 <li>月3回の単語帳生成</li>
                 <li>広告あり</li>
-                <li>基本機能</li>
+                <li>チャット単語生成・CSVダウンロード</li>
             </ul>
             {% if current_user.plan == 'free' %}
                 <p class="current-label">現在のプラン</p>
@@ -27,7 +27,9 @@
             <ul>
                 <li>月10回の単語帳生成</li>
                 <li>広告なし</li>
-                <li>快適な学習環境</li>
+                <li>単語帳の編集・再生成</li>
+                <li>試験対策マスター</li>
+                <li>発音・CEFR表示</li>
             </ul>
             {% if current_user.plan == 'ad_free' %}
                 <p class="current-label">現在のプラン</p>
@@ -42,8 +44,9 @@
             <ul>
                 <li>無制限の単語帳生成</li>
                 <li>広告なし</li>
-                <li>詳細なカスタマイズ</li>
-                <li>優先サポート</li>
+                <li>単語帳の編集・試験対策マスター</li>
+                <li>AI上級カスタマイズ</li>
+                <li>優先サポート・新機能先行</li>
             </ul>
             {% if current_user.plan == 'premium' %}
                 <p class="current-label">現在のプラン</p>

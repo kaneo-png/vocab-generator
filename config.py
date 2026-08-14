@@ -43,3 +43,13 @@ class Config:
     FREE_MONTHLY_LIMIT = 3
     AD_FREE_MONTHLY_LIMIT = 10
     PREMIUM_MONTHLY_LIMIT = 9999
+
+    # メール認証
+    MAILER_BACKEND = os.environ.get("MAILER_BACKEND", "console")  # console / smtp / sendgrid
+    APP_URL = os.environ.get("APP_URL", "http://localhost:5000")
+    SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
+    SMTP_HOST = os.environ.get("SMTP_HOST", "")
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+    SMTP_USER = os.environ.get("SMTP_USER", "")
+    SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+    MAIL_FROM = os.environ.get("MAIL_FROM", "")

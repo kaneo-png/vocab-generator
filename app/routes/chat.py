@@ -1,12 +1,18 @@
 import json
 import uuid
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify, current_app, session
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.wordlist import WordList
 from app.models.word import Word
 from app.models.chat_session import ChatSession
 from app.services.ai_service import AIService, AIServiceError
+from app.services.guest import (
+    add_guest_wordlist,
+    get_guest_generation_count,
+    increment_guest_generation,
+)
+from app.services.plan import GUEST_GENERATION_LIMIT
 from app.services.security import (
     INJECTION_ERROR_MESSAGE,
     MAX_FIELD_LENGTH,
@@ -20,14 +26,12 @@ chat_bp = Blueprint("chat", __name__)
 
 
 @chat_bp.route("/chat")
-@login_required
 def chat_page():
     """チャット画面を表示する。"""
     return render_template("chat.html")
 
 
 @chat_bp.route("/api/chat/session", methods=["POST"])
-@login_required
 def create_session():
     """新しいヒアリングセッションを作成し、最初の質問を返す。"""
     session = ChatSession(
@@ -62,7 +66,6 @@ def create_session():
 
 
 @chat_bp.route("/api/chat/message", methods=["POST"])
-@login_required
 def send_message():
     """ユーザーの発言をAIに渡し、応答と収集データの更新を返す。"""
     data = request.get_json(silent=True) or {}
@@ -119,7 +122,6 @@ def send_message():
 
 
 @chat_bp.route("/api/chat/session/<session_key>", methods=["GET"])
-@login_required
 def get_session(session_key: str):
     """セッションの状態を取得する（途中再開・修正用）。"""
     session = ChatSession.query.filter_by(session_key=session_key).first()
@@ -137,7 +139,6 @@ def get_session(session_key: str):
 
 
 @chat_bp.route("/api/chat/session/<session_key>", methods=["PUT"])
-@login_required
 def update_session(session_key: str):
     """収集データを直接修正する（途中修正機能）。"""
     data = request.get_json(silent=True) or {}
@@ -183,7 +184,6 @@ def update_session(session_key: str):
 
 
 @chat_bp.route("/api/chat/generate", methods=["POST"])
-@login_required
 def generate_wordlist():
     """
     チャットで収集した情報に基づいて単語帳を生成する。
@@ -232,11 +232,18 @@ def generate_wordlist():
     if not ok:
         return jsonify({"error": msg}), 400
 
-    if not current_user.can_generate():
-        return jsonify({
-            "error": "今月の生成回数上限に達しました。プランをアップグレードしてください。",
-            "limit_reached": True,
-        }), 403
+    # 生成権限チェック
+    if current_user.is_authenticated:
+        ok, err_msg, extra = current_user.is_generation_allowed()
+        if not ok:
+            return jsonify({"error": err_msg, **extra}), 403
+    else:
+        # ゲストは合計 GUEST_GENERATION_LIMIT 回まで
+        if get_guest_generation_count() >= GUEST_GENERATION_LIMIT:
+            return jsonify({
+                "error": f"ゲストは{GUEST_GENERATION_LIMIT}回までです。ログインまたは登録して続行してください。",
+                "login_required": True,
+            }), 403
 
     try:
         ai = AIService()
@@ -262,7 +269,7 @@ def generate_wordlist():
         }), 502
 
     wordlist = WordList(
-        user_id=current_user.id,
+        user_id=current_user.id if current_user.is_authenticated else None,
         title=result.get("title", "マイ単語帳"),
         goal=goal,
         level=level,
@@ -287,22 +294,44 @@ def generate_wordlist():
         db.session.flush()  # word.id を取得
         w["id"] = word.id
 
-    current_user.increment_generation()
-    db.session.commit()
+    if current_user.is_authenticated:
+        current_user.increment_generation()
+        db.session.commit()
+    else:
+        increment_guest_generation()
+        add_guest_wordlist(wordlist.id)
+        db.session.commit()
+
+    if current_user.is_authenticated:
+        remaining = current_user.get_monthly_limit() - current_user.monthly_generation_count
+    else:
+        remaining = GUEST_GENERATION_LIMIT - get_guest_generation_count()
 
     return jsonify({
         "wordlist_id": wordlist.id,
         "title": wordlist.title,
         "words": words,
         "errors": result.get("errors", []),
-        "remaining": current_user.get_monthly_limit() - current_user.monthly_generation_count,
+        "remaining": remaining,
     })
+
+
+def _edit_feature_gate():
+    """単語編集機能のゲート。利用不可ならエラーレスポンスを返す。"""
+    if not current_user.is_authenticated or not current_user.has_feature("edit"):
+        return jsonify({
+            "error": "単語の編集は広告なしプラン（月額10円）以上でご利用いただけます。"
+        }), 403
+    return None
 
 
 @chat_bp.route("/api/wordlists/<int:wordlist_id>/words", methods=["POST"])
 @login_required
 def add_word(wordlist_id: int):
     """単語帳に単語を追加する。"""
+    gate = _edit_feature_gate()
+    if gate:
+        return gate
     wordlist = WordList.query.filter_by(
         id=wordlist_id, user_id=current_user.id
     ).first_or_404()
@@ -332,6 +361,9 @@ def add_word(wordlist_id: int):
 @login_required
 def edit_word(wordlist_id: int, word_id: int):
     """単語を編集する。"""
+    gate = _edit_feature_gate()
+    if gate:
+        return gate
     word = Word.query.join(WordList).filter(
         Word.id == word_id,
         WordList.id == wordlist_id,
@@ -350,6 +382,9 @@ def edit_word(wordlist_id: int, word_id: int):
 @login_required
 def delete_word(wordlist_id: int, word_id: int):
     """単語を削除する。"""
+    gate = _edit_feature_gate()
+    if gate:
+        return gate
     word = Word.query.join(WordList).filter(
         Word.id == word_id,
         WordList.id == wordlist_id,

@@ -64,14 +64,15 @@ def test_csv_download_with_japanese_filename(client, app):
     assert "例" in body
 
 
-def test_csv_download_requires_login(client):
-    """未ログインではCSVをダウンロードできない。"""
-    response = client.get("/api/wordlists/1/csv")
-    assert response.status_code == 302
+def test_csv_download_requires_login(client, app):
+    """未ログインでは他人の単語帳CSVをダウンロードできない（403）。"""
+    _, wordlist_id = _create_user_with_wordlist(app)
+    response = client.get(f"/api/wordlists/{wordlist_id}/csv")
+    assert response.status_code == 403
 
 
 def test_csv_download_foreign_wordlist_denied(client, app):
-    """他人の単語帳はダウンロードできない。"""
+    """他人の単語帳はダウンロードできない（403）。"""
     user_id, wordlist_id = _create_user_with_wordlist(app)
 
     # 別ユーザーでログイン
@@ -85,4 +86,46 @@ def test_csv_download_foreign_wordlist_denied(client, app):
         sess["_fresh"] = True
 
     response = client.get(f"/api/wordlists/{wordlist_id}/csv")
-    assert response.status_code == 404
+    assert response.status_code == 403
+
+
+def test_csv_download_guest_own_wordlist_ok(client, app):
+    """ゲストが自分で生成した単語帳はCSVダウンロードできる。"""
+    with app.app_context():
+        wl = WordList(
+            user_id=None,
+            title="ゲストの単語帳",
+            goal="テスト",
+        )
+        db.session.add(wl)
+        db.session.flush()
+        db.session.add(Word(
+            wordlist_id=wl.id, word="apple", meaning="りんご",
+        ))
+        db.session.commit()
+        wl_id = wl.id
+
+    # セッションにゲストの単語帳IDを記録
+    with client.session_transaction() as sess:
+        sess["guest_wordlist_ids"] = [wl_id]
+
+    response = client.get(f"/api/wordlists/{wl_id}/csv")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "apple" in body
+
+
+def test_csv_download_guest_foreign_wordlist_denied(client, app):
+    """セッションに無いゲスト単語帳はダウンロードできない（403）。"""
+    with app.app_context():
+        wl = WordList(
+            user_id=None,
+            title="他人のゲスト単語帳",
+            goal="テスト",
+        )
+        db.session.add(wl)
+        db.session.commit()
+        wl_id = wl.id
+
+    response = client.get(f"/api/wordlists/{wl_id}/csv")
+    assert response.status_code == 403

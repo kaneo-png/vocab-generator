@@ -1,5 +1,5 @@
 """マスターDBベースの単語選定・フォルダ管理API。"""
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.exam import Exam
@@ -14,6 +14,15 @@ from app.services.security import (
 )
 
 master_bp = Blueprint("master", __name__)
+
+
+def _master_feature_gate():
+    """試験対策マスター機能のゲート。利用不可ならエラーレスポンスを返す。"""
+    if not current_user.has_feature("master"):
+        return jsonify({
+            "error": "試験対策マスターは広告なしプラン（月額10円）以上でご利用いただけます。"
+        }), 403
+    return None
 
 
 def _load_wordbook_word_dicts(wordbook) -> list:
@@ -48,6 +57,9 @@ def _load_wordbook_word_dicts(wordbook) -> list:
 @login_required
 def master_page():
     """マスターDBベースの単語選定ページ。"""
+    if not current_user.has_feature("master"):
+        flash("試験対策マスターは広告なしプラン（月額10円）以上でご利用いただけます。", "info")
+        return redirect(url_for("billing.plans"))
     exams = Exam.query.all()
     folders = Folder.query.filter_by(user_id=current_user.id).all()
     return render_template("master.html", exams=exams, folders=folders)
@@ -57,6 +69,9 @@ def master_page():
 @login_required
 def list_folders():
     """フォルダ一覧を取得する。"""
+    gate = _master_feature_gate()
+    if gate:
+        return gate
     folders = Folder.query.filter_by(user_id=current_user.id).all()
     return jsonify([{"id": f.id, "name": f.name, "wordbook_count": f.wordbooks.count()} for f in folders])
 
@@ -65,6 +80,9 @@ def list_folders():
 @login_required
 def create_folder():
     """フォルダを作成する。"""
+    gate = _master_feature_gate()
+    if gate:
+        return gate
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     if not name:
@@ -85,6 +103,9 @@ def create_folder():
 @login_required
 def delete_folder(folder_id: int):
     """フォルダを削除する。"""
+    gate = _master_feature_gate()
+    if gate:
+        return gate
     folder = Folder.query.filter_by(id=folder_id, user_id=current_user.id).first_or_404()
     db.session.delete(folder)
     db.session.commit()
@@ -95,6 +116,14 @@ def delete_folder(folder_id: int):
 @login_required
 def generate_wordbook():
     """AI選定に基づいて単語帳を生成する。"""
+    gate = _master_feature_gate()
+    if gate:
+        return gate
+
+    ok, err_msg, extra = current_user.is_generation_allowed()
+    if not ok:
+        return jsonify({"error": err_msg, **extra}), 403
+
     data = request.get_json(silent=True) or {}
     folder_id = data.get("folder_id")
     weak_points = (data.get("weak_points") or "").strip()
@@ -154,6 +183,7 @@ def generate_wordbook():
             sort_order=idx,
         ))
 
+    current_user.increment_generation()
     db.session.commit()
 
     return jsonify({
@@ -167,6 +197,9 @@ def generate_wordbook():
 @login_required
 def get_wordbook(wordbook_id: int):
     """単語帳の詳細を取得する。"""
+    gate = _master_feature_gate()
+    if gate:
+        return gate
     wordbook = Wordbook.query.filter_by(id=wordbook_id, user_id=current_user.id).first_or_404()
     words = _load_wordbook_word_dicts(wordbook)
     return jsonify({
@@ -180,6 +213,9 @@ def get_wordbook(wordbook_id: int):
 @login_required
 def download_wordbook_csv(wordbook_id: int):
     """単語帳をAnki互換CSVで出力する。"""
+    gate = _master_feature_gate()
+    if gate:
+        return gate
     from flask import Response
     from urllib.parse import quote
     from app.services.csv_service import CSVService

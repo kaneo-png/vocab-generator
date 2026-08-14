@@ -4,6 +4,12 @@
 
 {% block content %}
 <div class="chat-container">
+    {% if not current_user.is_authenticated %}
+        <div class="guest-banner">
+            🎁 ゲストは<b>合計2回まで</b>単語帳を生成できます。保存・継続利用には
+            <a href="{{ url_for('auth.register') }}">無料登録</a>（メール認証）が必要です。
+        </div>
+    {% endif %}
     <h1>単語帳を作成</h1>
     <p class="chat-description">
         チャットで学習目標・レベル・苦手分野を教えてください。<br>

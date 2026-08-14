@@ -1,10 +1,36 @@
+import secrets
+from datetime import datetime, timedelta, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from app.extensions import db
 from app.models.user import User
 from app.services.rate_limit import login_rate_limiter, RateLimitExceeded
+from app.services.mailer import send_verification_email
+from app.services.guest import migrate_guest_wordlists
+
 
 auth_bp = Blueprint("auth", __name__)
+
+TOKEN_TTL_HOURS = 24
+
+
+def _is_token_expired(expiry) -> bool:
+    """検証トークンの有効期限切れを判定する（tz非依存で安全に比較）。"""
+    if expiry is None:
+        return True
+    # SQLiteから読むとnaiveになるため、awareへ揃える
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    return expiry < datetime.now(timezone.utc)
+
+
+def _issue_verification(user) -> None:
+    """検証トークンを発行して確認メールを送信する。"""
+    token = secrets.token_urlsafe(32)
+    user.verification_token = token
+    user.verification_token_expiry = datetime.now(timezone.utc) + timedelta(hours=TOKEN_TTL_HOURS)
+    db.session.commit()
+    send_verification_email(user, token)
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])
@@ -39,7 +65,14 @@ def register():
         db.session.commit()
 
         login_user(user)
-        flash("アカウントを作成しました。", "success")
+        migrated = migrate_guest_wordlists(user)
+
+        # メール認証
+        _issue_verification(user)
+        flash(
+            "アカウントを作成しました。確認メールを送信しました。メールに記載のリンクで認証してください。",
+            "success",
+        )
         return redirect(url_for("main.dashboard"))
 
     return render_template("auth/register.html")
@@ -66,6 +99,7 @@ def login():
         if user and user.check_password(password):
             login_rate_limiter.reset(client_key)
             login_user(user)
+            migrate_guest_wordlists(user)
             flash("ログインしました。", "success")
             next_page = request.args.get("next")
             return redirect(next_page or url_for("main.dashboard"))
@@ -73,6 +107,39 @@ def login():
         flash("メールアドレスまたはパスワードが正しくありません。", "error")
 
     return render_template("auth/login.html")
+
+
+@auth_bp.route("/verify/<token>")
+def verify_email(token: str):
+    """メール認証リンクの確認。"""
+    user = User.query.filter_by(verification_token=token).first()
+    if not user:
+        flash("認証リンクが無効です。", "error")
+        return redirect(url_for("auth.login"))
+
+    if _is_token_expired(user.verification_token_expiry):
+        flash("認証リンクの有効期限が切れています。再送してください。", "error")
+        return redirect(url_for("main.resend_verification"))
+
+    user.email_verified = True
+    user.verification_token = None
+    user.verification_token_expiry = None
+    db.session.commit()
+    login_user(user)
+    flash("メール認証が完了しました。", "success")
+    return redirect(url_for("main.dashboard"))
+
+
+@auth_bp.route("/resend-verification")
+@login_required
+def resend_verification():
+    """確認メールを再送する。"""
+    if current_user.email_verified:
+        flash("既にメール認証済みです。", "info")
+        return redirect(url_for("main.dashboard"))
+    _issue_verification(current_user)
+    flash("確認メールを再送しました。", "success")
+    return redirect(url_for("main.dashboard"))
 
 
 @auth_bp.route("/logout")

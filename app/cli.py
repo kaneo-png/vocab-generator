@@ -19,6 +19,7 @@ def register_commands(app):
     app.cli.add_command(fill_meanings)
     app.cli.add_command(beta_promote)
     app.cli.add_command(beta_reset_password)
+    app.cli.add_command(beta_verify)
 
 
 @click.command("seed-all")
@@ -215,4 +216,22 @@ def beta_reset_password(email: str, new_password: str):
     user.set_password(new_password)
     db.session.commit()
     click.echo(f"✅ {user.email} のパスワードをリセットしました。")
+
+
+@click.command("beta-verify")
+@click.argument("email")
+def beta_verify(email: str):
+    """ベータテスターのメール認証を完了状態にする（開発用）。"""
+    from app.models.user import User
+
+    user = User.query.filter_by(email=email.strip().lower()).first()
+    if not user:
+        click.echo(f"❌ ユーザー '{email}' が見つかりません。")
+        return
+
+    user.email_verified = True
+    user.verification_token = None
+    user.verification_token_expiry = None
+    db.session.commit()
+    click.echo(f"✅ {user.email} のメール認証を完了しました。")
 

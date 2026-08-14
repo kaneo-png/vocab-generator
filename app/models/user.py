@@ -20,6 +20,10 @@ class User(UserMixin, db.Model):
     generation_month = db.Column(db.String(7), nullable=False, default="")
     # Stripe Customer ID（サブスク管理・解約時に使用）
     stripe_customer_id = db.Column(db.String(255), nullable=True)
+    # メール認証
+    email_verified = db.Column(db.Boolean, nullable=False, default=False)
+    verification_token = db.Column(db.String(64), nullable=True)
+    verification_token_expiry = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -36,14 +40,31 @@ class User(UserMixin, db.Model):
 
     def get_monthly_limit(self) -> int:
         """プランに応じた月間生成回数上限を返す。"""
-        from flask import current_app
+        from app.services.plan import monthly_limit
 
-        limits = {
-            "free": current_app.config["FREE_MONTHLY_LIMIT"],
-            "ad_free": current_app.config["AD_FREE_MONTHLY_LIMIT"],
-            "premium": current_app.config["PREMIUM_MONTHLY_LIMIT"],
-        }
-        return limits.get(self.plan, limits["free"])
+        return monthly_limit(self.plan)
+
+    def has_feature(self, feature: str) -> bool:
+        """プランで指定機能を利用できるかを判定する。"""
+        from app.services.plan import has_feature as _has_feature
+
+        return _has_feature(self.plan, feature)
+
+    def is_generation_allowed(self) -> tuple:
+        """生成可否とエラーメッセージを返す（メール認証 + 月間上限）。
+
+        Returns:
+            (ok: bool, error_message: str, extra: dict)
+        """
+        if not self.email_verified:
+            return False, "メール認証が完了していません。確認メールから認証してください。", {
+                "verification_required": True,
+            }
+        if not self.can_generate():
+            return False, "今月の生成回数上限に達しました。プランをアップグレードしてください。", {
+                "limit_reached": True,
+            }
+        return True, "", {}
 
     def can_generate(self) -> bool:
         """今月の生成回数が上限に達していないか判定。"""
